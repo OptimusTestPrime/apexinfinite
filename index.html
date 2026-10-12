@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Infinite</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="loading">
+        <div style="text-align: center;">
+            <div style="font-size: 42px; margin-bottom: 10px; color: #00ffcc;">Apex Infinite</div>
+            <div style="font-size: 16px; color: #aaa;">Generating World...</div>
+        </div>
+    </div>
+    
+    <div id="hud">
+        <div class="panel speed-panel">
+            <span id="speedVal">0</span> <span class="unit">km/h</span>
+        </div>
+        <div class="panel time-panel">
+            <div class="lap-row">Lap: <span id="lapCount">1</span></div>
+            <div class="lap-row current-lap" id="currentLap">00:00.000</div>
+            <div class="lap-row best-lap">Best: <span id="bestLap">--:--.---</span></div>
+            <div class="lap-row prev-lap">Prev: <span id="prevLap">--:--.---</span></div>
+        </div>
+    </div>
+
+    <div id="controls-help">
+        <h3>Controls</h3>
+        <p><b>W / Up:</b> Accelerate</p>
+        <p><b>S / Down:</b> Brake / Reverse</p>
+        <p><b>A / D:</b> Steer Left / Right</p>
+        <p><b>R:</b> Reset Car to Track</p>
+        <p><b>N:</b> Generate New Track</p>
+        <p><b>C:</b> Switch Camera</p>
+    </div>
+
+    <div id="new-record">NEW RECORD!</div>
+
+    <!-- Load Three.js (r92 for Physijs compatibility) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/92/three.min.js"></script>
+    <!-- Load Physijs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/physijs/1.0.4/physi.js"></script>
+    <!-- Load Game Logic -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
