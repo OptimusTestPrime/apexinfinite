@@ -6,7 +6,7 @@ window.addEventListener('DOMContentLoaded', () => {
     Physijs.scripts.ammo = 'ammo.js';
 
     let renderer, scene, camera, clock;
-    let vehicle, chassis;
+    let chassis; 
     let trackMeshes = [];
     let trackCurve, startPos, startLookAt;
 
@@ -150,36 +150,38 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupVehicle() {
-        let chassisGeom = new THREE.BoxGeometry(2, 1.2, 4);
-        let chassisMat = Physijs.createMaterial(new THREE.MeshLambertMaterial({ color: 0x1144ff }), 0.2, 0.2);
+        // 1. Create a wide, flat, invisible physics base to prevent rolling over
+        let physicsGeom = new THREE.BoxGeometry(2.5, 0.5, 4);
+        let chassisMat = Physijs.createMaterial(new THREE.MeshLambertMaterial({ color: 0x1144ff }), 0.8, 0.2);
         
-        chassis = new Physijs.BoxMesh(chassisGeom, chassisMat, 1000); 
+        chassis = new Physijs.BoxMesh(physicsGeom, chassisMat, 1000); 
         chassis.position.copy(startPos);
         chassis.lookAt(startLookAt);
         scene.add(chassis);
 
-        let tuning = new Physijs.VehicleTuning(15.0, 1.5, 1.5, 500, 1500, 2000);
-        vehicle = new Physijs.Vehicle(chassis, tuning);
-        scene.addVehicle(vehicle);
+        // 2. Add the visible car body on top of the physics base
+        let visualGeom = new THREE.BoxGeometry(2, 1.2, 4);
+        let visualMat = new THREE.MeshLambertMaterial({ color: 0x1144ff });
+        let visualMesh = new THREE.Mesh(visualGeom, visualMat);
+        visualMesh.position.y = 0.5; // Shift the visual car up so it sits properly
+        chassis.add(visualMesh);
 
+        // 3. Add decorative wheels (visual only)
         let wheelGeom = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
         wheelGeom.rotateZ(Math.PI / 2);
         let wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
 
         const wheelPositions = [
-            new THREE.Vector3(-1.1, -0.2, 1.2), 
-            new THREE.Vector3(1.1, -0.2, 1.2),  
-            new THREE.Vector3(-1.1, -0.2, -1.2),
-            new THREE.Vector3(1.1, -0.2, -1.2)  
+            new THREE.Vector3(-1.2, 0, 1.2), 
+            new THREE.Vector3(1.2, 0, 1.2),  
+            new THREE.Vector3(-1.2, 0, -1.2),
+            new THREE.Vector3(1.2, 0, -1.2)  
         ];
 
-        wheelPositions.forEach((pos, idx) => {
-            let isFront = idx < 2;
-            vehicle.addWheel(
-                wheelGeom, wheelMat, pos, 
-                new THREE.Vector3(0, -1, 0), new THREE.Vector3(-1, 0, 0), 
-                0.3, 0.5, isFront 
-            );
+        wheelPositions.forEach((pos) => {
+            let wheel = new THREE.Mesh(wheelGeom, wheelMat);
+            wheel.position.copy(pos);
+            chassis.add(wheel);
         });
     }
 
@@ -224,32 +226,42 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateVehicle() {
-        if (!vehicle) return;
+        if (!chassis) return;
 
-        let engineForce = 0;
-        let speed = chassis.getLinearVelocity().length() * 3.6; 
+        let velocity = chassis.getLinearVelocity();
+        let speed = velocity.length() * 3.6; 
         
-        if (keys.w && speed < 160) engineForce = 2500;
-        else if (keys.s) engineForce = -1500;
-
-        vehicle.applyEngineForce(engineForce, 2);
-        vehicle.applyEngineForce(engineForce, 3);
+        // Determine forward direction based on the car's current rotation matrix
+        let matrix = new THREE.Matrix4().extractRotation(chassis.matrix);
+        let forward = new THREE.Vector3(0, 0, 1).applyMatrix4(matrix);
         
-        if (!keys.w && !keys.s) {
-            vehicle.setBrake(10, 2);
-            vehicle.setBrake(10, 3);
+        // Acceleration & Braking Force
+        if (keys.w && speed < 160) {
+            chassis.applyCentralForce(forward.multiplyScalar(20000));
+        } else if (keys.s) {
+            chassis.applyCentralForce(forward.multiplyScalar(-15000));
         } else {
-            vehicle.setBrake(0, 2);
-            vehicle.setBrake(0, 3);
+            // Apply aggressive artificial drag when coasting
+            chassis.setLinearVelocity(velocity.multiplyScalar(0.96));
         }
 
-        let maxSteer = 0.5 - (Math.min(speed, 100) / 100) * 0.25; 
-        let steering = 0;
-        if (keys.a) steering = maxSteer;
-        if (keys.d) steering = -maxSteer;
+        // Arcade Steering (Only steer if moving)
+        if (speed > 5) {
+            let angularVelocity = chassis.getAngularVelocity();
+            
+            // Check if driving forward or reverse to invert steering intuitively
+            let isReverse = velocity.dot(forward) < 0;
+            let steerDir = isReverse ? -1 : 1;
+            
+            // Dynamic steering sensitivity: less twitchy at high speeds
+            let turnSpeed = (2.0 - (Math.min(speed, 100) / 100) * 1.0) * steerDir;
 
-        vehicle.setSteering(steering, 0);
-        vehicle.setSteering(steering, 1);
+            let targetY = 0;
+            if (keys.a) targetY = turnSpeed;
+            if (keys.d) targetY = -turnSpeed;
+            
+            chassis.setAngularVelocity(new THREE.Vector3(angularVelocity.x, targetY, angularVelocity.z));
+        }
 
         document.getElementById('speedVal').innerText = Math.floor(speed);
     }
