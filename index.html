@@ -5,12 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apex Infinite</title>
     <link rel="stylesheet" href="css/styles.css">
+    <script>
+        // On-screen error logger for iOS mobile debugging
+        window.onerror = function(message, source, lineno, colno, error) {
+            const log = document.getElementById('loading-text');
+            if (log) {
+                log.style.color = '#ff4444';
+                log.innerHTML = 'SYSTEM ERROR:<br>' + message + '<br>Line: ' + lineno;
+            }
+            return false;
+        };
+    </script>
 </head>
 <body>
     <div id="loading">
         <div style="text-align: center;">
-            <div style="font-size: 42px; margin-bottom: 10px; color: #00ffcc;">Apex Infinite</div>
-            <div style="font-size: 16px; color: #aaa;">Generating World...</div>
+            <div style="font-size: 42px; margin-bottom: 10px; color: #00ffcc; font-family: sans-serif; font-weight: bold;">Apex Infinite</div>
+            <div id="loading-text" style="font-size: 16px; color: #aaa; font-family: sans-serif;">Generating World...</div>
         </div>
     </div>
     
@@ -38,12 +49,11 @@
 
     <div id="new-record">NEW RECORD!</div>
 
-    <!-- Load Three.js (r92 for Physijs compatibility) -->
+    <!-- Load Three.js and Physijs synchronously -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/92/three.min.js"></script>
-    <!-- Load Physijs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/physijs/1.0.4/physi.js"></script>
-    <!-- Load Game Logic -->
+    
+    <!-- Load Game Logic without ES Module strictness to prevent iOS Web Worker blocking -->
     <script src="js/main.js"></script>
-<!--    <script type="module" src="js/main.js"></script> -->
 </body>
 </html>
