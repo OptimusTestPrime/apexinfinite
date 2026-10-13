@@ -150,7 +150,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupVehicle() {
-        // 1. Create a wide, flat, invisible physics base to prevent rolling over
         let physicsGeom = new THREE.BoxGeometry(2.5, 0.5, 4);
         let chassisMat = Physijs.createMaterial(new THREE.MeshLambertMaterial({ color: 0x1144ff }), 0.8, 0.2);
         
@@ -159,14 +158,12 @@ window.addEventListener('DOMContentLoaded', () => {
         chassis.lookAt(startLookAt);
         scene.add(chassis);
 
-        // 2. Add the visible car body on top of the physics base
         let visualGeom = new THREE.BoxGeometry(2, 1.2, 4);
         let visualMat = new THREE.MeshLambertMaterial({ color: 0x1144ff });
         let visualMesh = new THREE.Mesh(visualGeom, visualMat);
-        visualMesh.position.y = 0.5; // Shift the visual car up so it sits properly
+        visualMesh.position.y = 0.5; 
         chassis.add(visualMesh);
 
-        // 3. Add decorative wheels (visual only)
         let wheelGeom = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
         wheelGeom.rotateZ(Math.PI / 2);
         let wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
@@ -204,6 +201,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupInput() {
+        // Keyboard Controls
         document.addEventListener('keydown', (e) => {
             let k = e.key.toLowerCase();
             if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
@@ -223,37 +221,67 @@ window.addEventListener('DOMContentLoaded', () => {
             if (k === 's' || e.key === 'ArrowDown') keys.s = false;
             if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
         });
+
+        // Mobile Pointer Events (Bypasses iOS touch quirks completely)
+        const bindButton = (id, key) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const press = (e) => {
+                e.preventDefault();
+                keys[key] = true;
+                btn.style.background = 'rgba(0, 255, 204, 0.6)';
+                btn.style.color = '#000';
+            };
+
+            const release = (e) => {
+                e.preventDefault();
+                keys[key] = false;
+                btn.style.background = 'rgba(0, 0, 0, 0.5)';
+                btn.style.color = '#00ffcc';
+            };
+
+            btn.addEventListener('pointerdown', press);
+            btn.addEventListener('pointerup', release);
+            btn.addEventListener('pointerout', release);
+            btn.addEventListener('pointercancel', release);
+        };
+
+        bindButton('btn-up', 'w');
+        bindButton('btn-down', 's');
+        bindButton('btn-left', 'a');
+        bindButton('btn-right', 'd');
     }
 
     function updateVehicle() {
         if (!chassis) return;
 
         let velocity = chassis.getLinearVelocity();
+        let angularVelocity = chassis.getAngularVelocity();
         let speed = velocity.length() * 3.6; 
         
-        // Determine forward direction based on the car's current rotation matrix
+        // ANTI-SLEEP HACK: Physijs puts bodies to sleep when idle. 
+        // We force it awake by resetting its exact velocity whenever a button is pressed.
+        if (keys.w || keys.s || keys.a || keys.d) {
+            chassis.setLinearVelocity(new THREE.Vector3(velocity.x, velocity.y, velocity.z));
+            chassis.setAngularVelocity(new THREE.Vector3(angularVelocity.x, angularVelocity.y, angularVelocity.z));
+        }
+
         let matrix = new THREE.Matrix4().extractRotation(chassis.matrix);
         let forward = new THREE.Vector3(0, 0, 1).applyMatrix4(matrix);
         
-        // Acceleration & Braking Force
         if (keys.w && speed < 160) {
             chassis.applyCentralForce(forward.multiplyScalar(20000));
         } else if (keys.s) {
             chassis.applyCentralForce(forward.multiplyScalar(-15000));
         } else {
-            // Apply aggressive artificial drag when coasting
             chassis.setLinearVelocity(velocity.multiplyScalar(0.96));
         }
 
-        // Arcade Steering (Only steer if moving)
         if (speed > 5) {
-            let angularVelocity = chassis.getAngularVelocity();
-            
-            // Check if driving forward or reverse to invert steering intuitively
             let isReverse = velocity.dot(forward) < 0;
             let steerDir = isReverse ? -1 : 1;
             
-            // Dynamic steering sensitivity: less twitchy at high speeds
             let turnSpeed = (2.0 - (Math.min(speed, 100) / 100) * 1.0) * steerDir;
 
             let targetY = 0;
