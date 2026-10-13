@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Apex Infinite</title>
     <link rel="stylesheet" href="css/styles.css">
     <script>
-        // On-screen error logger for iOS mobile debugging
         window.onerror = function(message, source, lineno, colno, error) {
             const log = document.getElementById('loading-text');
             if (log) {
@@ -47,13 +46,22 @@
         <p><b>C:</b> Switch Camera</p>
     </div>
 
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+        <div class="control-group">
+            <button id="btn-left">◀</button>
+            <button id="btn-right">▶</button>
+        </div>
+        <div class="control-group">
+            <button id="btn-down">▼</button>
+            <button id="btn-up">▲</button>
+        </div>
+    </div>
+
     <div id="new-record">NEW RECORD!</div>
 
-    <!-- Load Three.js and Physijs synchronously -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/92/three.min.js"></script>
     <script src="js/physi.js"></script>
-    
-    <!-- Load Game Logic without ES Module strictness to prevent iOS Web Worker blocking -->
     <script src="js/main.js"></script>
 </body>
 </html>
