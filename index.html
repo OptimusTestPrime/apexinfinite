@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Apex Infinite</title>
     <link rel="stylesheet" href="css/styles.css">
     <script>
@@ -17,6 +17,15 @@
     </script>
 </head>
 <body>
+    <!-- Portrait Mode Lock Screen -->
+    <div id="landscape-prompt">
+        <div style="text-align: center;">
+            <div style="font-size: 40px; margin-bottom: 15px;">🔄</div>
+            <div>Please Rotate Device</div>
+            <div style="font-size: 14px; color: #aaa; margin-top: 5px;">Landscape mode required</div>
+        </div>
+    </div>
+
     <div id="loading">
         <div style="text-align: center;">
             <div style="font-size: 42px; margin-bottom: 10px; color: #00ffcc; font-family: sans-serif; font-weight: bold;">Apex Infinite</div>
@@ -49,12 +58,12 @@
     <!-- Mobile Touch Controls -->
     <div id="mobile-controls">
         <div class="control-group">
-            <button id="btn-left">◀</button>
-            <button id="btn-right">▶</button>
+            <div class="touch-btn" id="btn-left">◀</div>
+            <div class="touch-btn" id="btn-right">▶</div>
         </div>
         <div class="control-group">
-            <button id="btn-down">▼</button>
-            <button id="btn-up">▲</button>
+            <div class="touch-btn" id="btn-down">▼</div>
+            <div class="touch-btn" id="btn-up">▲</div>
         </div>
     </div>
 
