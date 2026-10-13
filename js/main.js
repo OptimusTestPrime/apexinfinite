@@ -1,12 +1,14 @@
+// Await DOM load to prevent execution before libraries are ready
 window.addEventListener('DOMContentLoaded', () => {
     
+    // Explicit relative paths for GitHub Pages
     Physijs.scripts.worker = 'js/physijs_worker.js'; 
     Physijs.scripts.ammo = 'ammo.js';
 
     let renderer, scene, camera, clock;
     let chassis; 
     let trackPhysicsMeshes = [];
-    let trackVisualMesh;
+    let visualTrackGroup;
     let trackCurve, startPos, startLookAt;
 
     let sessionBest = Infinity;
@@ -16,6 +18,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let halfwayCleared = false; 
 
     const keys = { w: false, a: false, s: false, d: false, r: false, n: false, c: false };
+    let currentCameraView = 0; 
 
     init();
 
@@ -28,7 +31,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         scene = new Physijs.Scene();
         scene.setGravity(new THREE.Vector3(0, -50, 0));
-        scene.fog = new THREE.Fog(0x87CEEB, 100, 800); // Blend track into horizon
+        scene.fog = new THREE.Fog(0x87CEEB, 100, 800); // Blend into horizon
         scene.addEventListener('update', () => scene.simulate(undefined, 2));
 
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
@@ -53,7 +56,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupEnvironment() {
-        // Massive grass plane
         let groundGeom = new THREE.PlaneGeometry(4000, 4000);
         let groundMat = new THREE.MeshLambertMaterial({ color: 0x5a8a5a });
         let ground = new THREE.Mesh(groundGeom, groundMat);
@@ -71,16 +73,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     function generateTrack() {
-        // Remove old track elements
+        // Clear old track
         trackPhysicsMeshes.forEach(mesh => scene.remove(mesh));
         trackPhysicsMeshes = [];
-        if (trackVisualMesh) scene.remove(trackVisualMesh);
+        if (visualTrackGroup) scene.remove(visualTrackGroup);
+        visualTrackGroup = new THREE.Group();
+        scene.add(visualTrackGroup);
 
-        // 1. Generate Spline
+        // 1. Generate core spline
         const numPoints = 16;
         const points = [];
         let baseRadius = 250;
-
         for (let i = 0; i < numPoints; i++) {
             let angle = (i / numPoints) * Math.PI * 2;
             let r = baseRadius + (Math.random() - 0.5) * 150; 
@@ -88,28 +91,57 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         trackCurve = new THREE.CatmullRomCurve3(points, true);
 
-        // 2. Generate Smooth Visual Track (ExtrudeGeometry)
-        let shape = new THREE.Shape();
-        shape.moveTo(-13, 2); // Left Wall Top
-        shape.lineTo(-12, 2); 
-        shape.lineTo(-12, 0); // Road Left
-        shape.lineTo(12, 0);  // Road Right
-        shape.lineTo(12, 2);  // Right Wall Inner
-        shape.lineTo(13, 2);  // Right Wall Top
-
-        let extrudeSettings = { steps: 300, extrudePath: trackCurve, bevelEnabled: false };
-        let trackVisualGeom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        let trackVisualMat = new THREE.MeshLambertMaterial({ color: 0x333333, wireframe: false });
-        trackVisualMesh = new THREE.Mesh(trackVisualGeom, trackVisualMat);
-        trackVisualMesh.position.y = -0.5; // Sink slightly to align with physics
-        scene.add(trackVisualMesh);
-
-        // 3. Generate Invisible Physics Track (0 Friction to prevent snagging)
-        let invisibleRoadMat = Physijs.createMaterial(new THREE.MeshBasicMaterial(), 0.0, 0.0); // ZERO FRICTION
-        let invisibleWallMat = Physijs.createMaterial(new THREE.MeshBasicMaterial(), 0.0, 0.0);
-        
         const segments = 250;
         const roadWidth = 24;
+        const wallHeight = 4;
+
+        // 2. Custom Visual Ribbon Geometry (Mathematically eliminates twisting)
+        let roadGeom = new THREE.Geometry();
+        let leftWallGeom = new THREE.Geometry();
+        let rightWallGeom = new THREE.Geometry();
+
+        for (let i = 0; i <= segments; i++) {
+            let t = (i % segments) / segments; 
+            let pt = trackCurve.getPoint(t);
+            let tangent = trackCurve.getTangent(t).normalize();
+            // Force pure horizontal vector for perfect alignment
+            let right = new THREE.Vector3(tangent.z, 0, -tangent.x).normalize(); 
+
+            let pLeft = pt.clone().add(right.clone().multiplyScalar(roadWidth / 2));
+            let pRight = pt.clone().add(right.clone().multiplyScalar(-roadWidth / 2));
+            roadGeom.vertices.push(pLeft, pRight);
+
+            leftWallGeom.vertices.push(pLeft, pLeft.clone().add(new THREE.Vector3(0, wallHeight, 0)));
+            rightWallGeom.vertices.push(pRight, pRight.clone().add(new THREE.Vector3(0, wallHeight, 0)));
+        }
+
+        for (let i = 0; i < segments; i++) {
+            let v = i * 2;
+            // Road Faces
+            roadGeom.faces.push(new THREE.Face3(v, v+1, v+2));
+            roadGeom.faces.push(new THREE.Face3(v+1, v+3, v+2));
+            // Left Wall Faces (Inward)
+            leftWallGeom.faces.push(new THREE.Face3(v, v+2, v+1));
+            leftWallGeom.faces.push(new THREE.Face3(v+1, v+2, v+3));
+            // Right Wall Faces (Inward)
+            rightWallGeom.faces.push(new THREE.Face3(v, v+1, v+2));
+            rightWallGeom.faces.push(new THREE.Face3(v+1, v+3, v+2));
+        }
+        
+        roadGeom.computeFaceNormals();
+        leftWallGeom.computeFaceNormals();
+        rightWallGeom.computeFaceNormals();
+
+        let visualRoad = new THREE.Mesh(roadGeom, new THREE.MeshLambertMaterial({ color: 0x333333 }));
+        let visualLeftWall = new THREE.Mesh(leftWallGeom, new THREE.MeshLambertMaterial({ color: 0xeeeeee }));
+        let visualRightWall = new THREE.Mesh(rightWallGeom, new THREE.MeshLambertMaterial({ color: 0xeeeeee }));
+        
+        visualTrackGroup.add(visualRoad);
+        visualTrackGroup.add(visualLeftWall);
+        visualTrackGroup.add(visualRightWall);
+
+        // 3. Invisible Physics Floor & Walls (Restored Friction)
+        let invisibleMat = Physijs.createMaterial(new THREE.MeshBasicMaterial({ visible: false }), 0.8, 0.2);
 
         for (let i = 0; i < segments; i++) {
             let t = i / segments;
@@ -118,38 +150,33 @@ window.addEventListener('DOMContentLoaded', () => {
             let pt = trackCurve.getPoint(t);
             let nextPt = trackCurve.getPoint(nextT);
             let tangent = trackCurve.getTangent(t).normalize();
-            
-            let up = new THREE.Vector3(0, 1, 0);
-            let right = new THREE.Vector3().crossVectors(tangent, up).normalize();
-
+            let right = new THREE.Vector3(tangent.z, 0, -tangent.x).normalize();
             let center = new THREE.Vector3().lerpVectors(pt, nextPt, 0.5);
             let segLength = pt.distanceTo(nextPt) * 1.1; 
 
-            // Floor collision box (Invisible)
-            let floorGeom = new THREE.BoxGeometry(roadWidth, 1, segLength);
-            let floor = new Physijs.BoxMesh(floorGeom, invisibleRoadMat, 0);
+            // Floor box (Height 1, Top surface exactly at Y=0)
+            let floor = new Physijs.BoxMesh(new THREE.BoxGeometry(roadWidth, 1, segLength), invisibleMat, 0);
             floor.position.copy(center);
-            floor.position.y = -1.0;
+            floor.position.y = -0.5; 
             floor.lookAt(nextPt);
-            floor.visible = false; 
+            floor.visible = false;
             scene.add(floor);
             trackPhysicsMeshes.push(floor);
 
-            // Left wall collision box (Invisible)
+            // Walls
             let leftPos = center.clone().add(right.clone().multiplyScalar(roadWidth / 2));
-            let leftWall = new Physijs.BoxMesh(new THREE.BoxGeometry(2, 4, segLength), invisibleWallMat, 0);
+            let leftWall = new Physijs.BoxMesh(new THREE.BoxGeometry(2, wallHeight, segLength), invisibleMat, 0);
             leftWall.position.copy(leftPos);
-            leftWall.position.y = 1;
+            leftWall.position.y = wallHeight / 2;
             leftWall.lookAt(leftPos.clone().add(tangent));
             leftWall.visible = false;
             scene.add(leftWall);
             trackPhysicsMeshes.push(leftWall);
 
-            // Right wall collision box (Invisible)
             let rightPos = center.clone().add(right.clone().multiplyScalar(-roadWidth / 2));
-            let rightWall = new Physijs.BoxMesh(new THREE.BoxGeometry(2, 4, segLength), invisibleWallMat, 0);
+            let rightWall = new Physijs.BoxMesh(new THREE.BoxGeometry(2, wallHeight, segLength), invisibleMat, 0);
             rightWall.position.copy(rightPos);
-            rightWall.position.y = 1;
+            rightWall.position.y = wallHeight / 2;
             rightWall.lookAt(rightPos.clone().add(tangent));
             rightWall.visible = false;
             scene.add(rightWall);
@@ -157,17 +184,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
             if (i === 0) {
                 startPos = pt.clone();
-                startPos.y = 2;
+                startPos.y = 1.2; // Perfectly matches the 1.2 radius of the physics sphere
                 startLookAt = nextPt.clone();
             }
         }
-
-        // 4. Start Line Graphic
         createStartLine(startPos, startLookAt);
     }
 
     function createStartLine(pos, lookAtTarget) {
-        // Generate a checkered pattern purely in code
         let canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 128;
         let ctx = canvas.getContext('2d');
@@ -185,49 +209,46 @@ window.addEventListener('DOMContentLoaded', () => {
         let lineMat = new THREE.MeshBasicMaterial({ map: tex });
         let linePlane = new THREE.Mesh(new THREE.PlaneGeometry(24, 4), lineMat);
         linePlane.position.copy(pos);
-        linePlane.position.y = -0.4; // Slightly above visual road
+        linePlane.position.y = 0.05; // Slightly above road
         linePlane.lookAt(lookAtTarget);
         linePlane.rotateX(-Math.PI / 2);
-        scene.add(linePlane);
-        trackPhysicsMeshes.push(linePlane);
+        visualTrackGroup.add(linePlane);
     }
 
     function setupVehicle() {
-        // Invisible physics base
-        let physicsGeom = new THREE.BoxGeometry(2.2, 0.5, 4);
-        let chassisMat = Physijs.createMaterial(new THREE.MeshBasicMaterial(), 0.1, 0.2);
+        // Anti-Snag Sphere Physics Base
+        let physicsGeom = new THREE.SphereGeometry(1.2, 16, 16);
+        let chassisMat = Physijs.createMaterial(new THREE.MeshBasicMaterial({ visible: false }), 0.8, 0.2);
         
-        chassis = new Physijs.BoxMesh(physicsGeom, chassisMat, 1000); 
+        chassis = new Physijs.SphereMesh(physicsGeom, chassisMat, 1000); 
         chassis.position.copy(startPos);
         chassis.lookAt(startLookAt);
+        // CRITICAL: Locks rotation on X and Z so the sphere glides but doesn't roll over
+        chassis.setAngularFactor(new THREE.Vector3(0, 1, 0)); 
         scene.add(chassis);
 
-        // Modern Supercar Assembly
+        // Supercar Assembly
         let carGroup = new THREE.Group();
-        carGroup.position.y = 0.5;
+        carGroup.position.y = -0.7; // Offset so the body sits securely near the bottom of the sphere
 
         let whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
         let glassMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
 
-        // Main Body
         let bodyGeo = new THREE.BoxGeometry(2.0, 0.5, 4.2);
         let body = new THREE.Mesh(bodyGeo, whiteMat);
         body.position.y = 0.25;
         carGroup.add(body);
 
-        // Cabin
         let cabinGeo = new THREE.BoxGeometry(1.4, 0.4, 2.0);
         let cabin = new THREE.Mesh(cabinGeo, glassMat);
         cabin.position.set(0, 0.7, 0.2);
         carGroup.add(cabin);
 
-        // Spoiler
         let spoilerGeo = new THREE.BoxGeometry(1.8, 0.05, 0.4);
         let spoiler = new THREE.Mesh(spoilerGeo, whiteMat);
         spoiler.position.set(0, 0.8, -1.8);
         carGroup.add(spoiler);
 
-        // Spoiler Struts
         let strutGeo = new THREE.BoxGeometry(0.05, 0.3, 0.2);
         let strutL = new THREE.Mesh(strutGeo, glassMat);
         strutL.position.set(-0.6, 0.65, -1.8);
@@ -236,7 +257,6 @@ window.addEventListener('DOMContentLoaded', () => {
         strutR.position.set(0.6, 0.65, -1.8);
         carGroup.add(strutR);
 
-        // Decorative Wheels
         let wheelGeom = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
         wheelGeom.rotateZ(Math.PI / 2);
         const wheelPositions = [
@@ -252,8 +272,24 @@ window.addEventListener('DOMContentLoaded', () => {
         chassis.add(carGroup);
     }
 
+    function resetCar(resetLap = false) {
+        chassis.__dirtyPosition = true;
+        chassis.__dirtyRotation = true;
+        chassis.position.copy(startPos);
+        chassis.lookAt(startLookAt);
+        chassis.setLinearVelocity(new THREE.Vector3(0, 0, 0));
+        chassis.setAngularVelocity(new THREE.Vector3(0, 0, 0));
+        
+        if (resetLap) {
+            currentLapStart = clock.getElapsedTime();
+            halfwayCleared = false;
+            lapCount = 1;
+            sessionBest = Infinity;
+            document.getElementById('bestLap').innerText = "--:--.--";
+        }
+    }
+
     function setupInput() {
-        // Keyboard Controls
         document.addEventListener('keydown', (e) => {
             let k = e.key.toLowerCase();
             if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
@@ -270,7 +306,6 @@ window.addEventListener('DOMContentLoaded', () => {
             if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
         });
 
-        // Pointer Events
         const bindButton = (id, key) => {
             const btn = document.getElementById(id);
             if (!btn) return;
@@ -295,7 +330,6 @@ window.addEventListener('DOMContentLoaded', () => {
         let angularVelocity = chassis.getAngularVelocity();
         let speed = velocity.length() * 3.6; 
         
-        // Anti-sleep hack
         if (keys.w || keys.s || keys.a || keys.d) {
             chassis.setLinearVelocity(new THREE.Vector3(velocity.x, velocity.y, velocity.z));
             chassis.setAngularVelocity(new THREE.Vector3(angularVelocity.x, angularVelocity.y, angularVelocity.z));
@@ -305,11 +339,11 @@ window.addEventListener('DOMContentLoaded', () => {
         let forward = new THREE.Vector3(0, 0, -1).applyMatrix4(matrix);
         
         if (keys.w && speed < 180) {
-            chassis.applyCentralForce(forward.multiplyScalar(22000)); // Slightly faster
+            chassis.applyCentralForce(forward.multiplyScalar(22000)); 
         } else if (keys.s) {
             chassis.applyCentralForce(forward.multiplyScalar(-18000));
         } else {
-            chassis.setLinearVelocity(velocity.multiplyScalar(0.97)); // Coasting friction
+            chassis.setLinearVelocity(velocity.multiplyScalar(0.97)); 
         }
 
         if (speed > 5) {
@@ -324,9 +358,11 @@ window.addEventListener('DOMContentLoaded', () => {
             chassis.setAngularVelocity(new THREE.Vector3(angularVelocity.x, targetY, angularVelocity.z));
         }
 
-        // Update UI
-        document.getElementById('speedVal').innerText = Math.floor(speed);
-        document.getElementById('speedBarFill').style.width = Math.min(speed / 1.8, 100) + '%';
+        const speedDisplay = document.getElementById('speedVal');
+        if (speedDisplay) speedDisplay.innerText = Math.floor(speed);
+        
+        const speedBar = document.getElementById('speedBarFill');
+        if (speedBar) speedBar.style.width = Math.min(speed / 1.8, 100) + '%';
     }
 
     function updateLapTimer() {
@@ -367,6 +403,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function showNewRecord() {
         let msg = document.getElementById('new-record');
+        if (!msg) return;
         msg.style.opacity = 1;
         setTimeout(() => msg.style.opacity = 0, 3000);
     }
@@ -374,12 +411,11 @@ window.addEventListener('DOMContentLoaded', () => {
     function updateCamera() {
         if (!chassis) return;
 
-        // Modern slightly lower chase camera
         let relativeOffset = new THREE.Vector3(0, 3, 10);
         let targetPos = relativeOffset.applyMatrix4(chassis.matrixWorld);
         
         camera.position.lerp(targetPos, 0.15); 
-        camera.lookAt(chassis.position);
+        camera.lookAt(chassis.position.clone().add(new THREE.Vector3(0, 1, -5)));
     }
 
     function onWindowResize() {
