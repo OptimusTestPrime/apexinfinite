@@ -17,7 +17,6 @@
     </script>
 </head>
 <body>
-    <!-- Portrait Mode Lock Screen -->
     <div id="landscape-prompt">
         <div style="text-align: center;">
             <div style="font-size: 40px; margin-bottom: 15px;">🔄</div>
@@ -28,38 +27,37 @@
 
     <div id="loading">
         <div style="text-align: center;">
-            <div style="font-size: 42px; margin-bottom: 10px; color: #00ffcc; font-family: sans-serif; font-weight: bold;">Apex Infinite</div>
+            <div style="font-size: 42px; margin-bottom: 10px; color: #ffffff; font-family: sans-serif; font-weight: bold;">Apex Infinite</div>
             <div id="loading-text" style="font-size: 16px; color: #aaa; font-family: sans-serif;">Generating World...</div>
         </div>
     </div>
     
-    <div id="hud">
-        <div class="panel speed-panel">
-            <span id="speedVal">0</span> <span class="unit">km/h</span>
+    <div id="top-hud">
+        <!-- Lap Info (Top Left) -->
+        <div class="glass-panel time-container">
+            <div class="time-col">
+                <span class="time-label">Lap <span id="lapCount">1</span></span>
+                <span class="time-val" id="currentLap">00:00.00</span>
+            </div>
+            <div class="time-col">
+                <span class="time-label">Best</span>
+                <span class="time-val" id="bestLap">--:--.--</span>
+            </div>
         </div>
-        <div class="panel time-panel">
-            <div class="lap-row">Lap: <span id="lapCount">1</span></div>
-            <div class="lap-row current-lap" id="currentLap">00:00.000</div>
-            <div class="lap-row best-lap">Best: <span id="bestLap">--:--.---</span></div>
-            <div class="lap-row prev-lap">Prev: <span id="prevLap">--:--.---</span></div>
+
+        <!-- Speed Info (Top Center) -->
+        <div class="speed-container">
+            <span class="speed-val" id="speedVal">0</span>
+            <div class="speed-bar"><div class="speed-fill" id="speedBarFill"></div></div>
+            <span class="speed-unit">km/h</span>
         </div>
     </div>
 
-    <div id="controls-help">
-        <h3>Controls</h3>
-        <p><b>W / Up:</b> Accelerate</p>
-        <p><b>S / Down:</b> Brake / Reverse</p>
-        <p><b>A / D:</b> Steer Left / Right</p>
-        <p><b>R:</b> Reset Car to Track</p>
-        <p><b>N:</b> Generate New Track</p>
-        <p><b>C:</b> Switch Camera</p>
-    </div>
-
-    <!-- Mobile Touch Controls -->
+    <!-- Mobile Touch Controls (Bottom Corners) -->
     <div id="mobile-controls">
         <div class="control-group">
-            <div class="touch-btn" id="btn-left">◀</div>
-            <div class="touch-btn" id="btn-right">▶</div>
+            <div class="touch-btn" id="btn-left">❮</div>
+            <div class="touch-btn" id="btn-right">❯</div>
         </div>
         <div class="control-group">
             <div class="touch-btn" id="btn-down">▼</div>
