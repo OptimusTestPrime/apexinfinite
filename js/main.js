@@ -222,7 +222,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
         });
 
-        // Mobile Pointer Events (Bypasses iOS touch quirks completely)
+        // Mobile Pointer Events
         const bindButton = (id, key) => {
             const btn = document.getElementById(id);
             if (!btn) return;
@@ -261,14 +261,14 @@ window.addEventListener('DOMContentLoaded', () => {
         let speed = velocity.length() * 3.6; 
         
         // ANTI-SLEEP HACK: Physijs puts bodies to sleep when idle. 
-        // We force it awake by resetting its exact velocity whenever a button is pressed.
         if (keys.w || keys.s || keys.a || keys.d) {
             chassis.setLinearVelocity(new THREE.Vector3(velocity.x, velocity.y, velocity.z));
             chassis.setAngularVelocity(new THREE.Vector3(angularVelocity.x, angularVelocity.y, angularVelocity.z));
         }
 
         let matrix = new THREE.Matrix4().extractRotation(chassis.matrix);
-        let forward = new THREE.Vector3(0, 0, 1).applyMatrix4(matrix);
+        // FIX: The forward vector must be negative Z (-1) to match the car's orientation
+        let forward = new THREE.Vector3(0, 0, -1).applyMatrix4(matrix);
         
         if (keys.w && speed < 160) {
             chassis.applyCentralForce(forward.multiplyScalar(20000));
